@@ -9,6 +9,26 @@ main() {
         exit 1
     }
 
+    download() (
+        if wget -T 20 -O "$2" "$1" && [ -s "$2" ]; then
+            return 0
+        fi
+        rm -f "$2"
+        [ "$#" -eq 3 ] || return 1
+
+        asset_id="$(jsonfilter -i "$WORKDIR/release.json" -e "@.assets[@.name=\"$3\"].id")" || return 1
+        case "$asset_id" in
+            ''|*[!0-9]*) return 1 ;;
+        esac
+        echo "Direct download failed; trying the GitHub asset API for $3..."
+        if wget -T 20 --header='Accept: application/octet-stream' -O "$2" \
+            "https://api.github.com/repos/$REPO/releases/assets/$asset_id" && [ -s "$2" ]; then
+            return 0
+        fi
+        rm -f "$2"
+        return 1
+    )
+
     [ "$(id -u)" -eq 0 ] || fail "Run this installer as root."
     for command in jsonfilter apk wget; do
         command -v "$command" >/dev/null 2>&1 || fail "Required command not found: $command. Only APK-based OpenWrt is supported."
@@ -27,7 +47,7 @@ main() {
     mkdir "$WORKDIR/keys"
 
     echo "Finding the latest Firefox VPN release for OpenWrt ($ARCH)..."
-    wget -O "$WORKDIR/release.json" "https://api.github.com/repos/$REPO/releases/latest" || fail "Cannot fetch the latest release. Check https://github.com/$REPO/releases, internet access and router date/time."
+    download "https://api.github.com/repos/$REPO/releases/latest" "$WORKDIR/release.json" || fail "Cannot fetch the latest release. Check https://github.com/$REPO/releases, internet access and router date/time."
     TAG="$(jsonfilter -i "$WORKDIR/release.json" -e '@.tag_name')"
     case "$TAG" in
         ''|*[!a-zA-Z0-9._-]*) fail "No valid published release tag was found. Check https://github.com/$REPO/releases." ;;
@@ -41,10 +61,9 @@ main() {
     LUCI="luci-app-firefox-vpn-$VERSION-all.apk"
     URL="https://github.com/$REPO/releases/download/$TAG"
     for package in "$BACKEND" "$LUCI"; do
-        wget -O "$WORKDIR/$package" "$URL/$package" || fail "Package unavailable or download failed: $package."
-        [ -s "$WORKDIR/$package" ] || fail "Downloaded package is empty: $package."
+        download "$URL/$package" "$WORKDIR/$package" "$package" || fail "Package unavailable or download failed: $package."
     done
-    wget -O "$WORKDIR/keys/firefox-vpn-build.pem" "$URL/firefox-vpn-build-public.pem" || fail "Cannot download the package signing key."
+    download "$URL/firefox-vpn-build-public.pem" "$WORKDIR/keys/firefox-vpn-build.pem" firefox-vpn-build-public.pem || fail "Cannot download the package signing key."
 
     # Verify both packages before trusting the key or changing the installation.
     apk --keys-dir "$WORKDIR/keys" verify "$WORKDIR/$BACKEND" "$WORKDIR/$LUCI" || fail "Package signature verification failed. Nothing was installed."
