@@ -25,7 +25,7 @@ elif name == 'jsonfilter':
     print(value)
 elif name == 'apk':
     if args == ['--print-arch']:
-        print({'bad-arch': '../bad', 'x86': 'x86_64'}.get(scenario, 'aarch64_cortex-a53'))
+        print('x86_64' if scenario == 'x86' else 'aarch64')
     elif (scenario == 'bad-signature' and 'verify' in args) or (scenario == 'install-failed' and args[0] == 'add'):
         sys.exit(1)
 elif name == 'wget':
@@ -66,16 +66,22 @@ class InstallerCheck(unittest.TestCase):
             ('ok', '25.12.6'), ('not-root', '25.12.6'),
             ('ok', '25.12.5'), ('ok', 'SNAPSHOT'),
             ('ok', '25.12.6-rc1'), ('ok', '26.01.0'),
-            ('bad-arch', '25.12.6'), ('no-release', '25.12.6'),
+            ('bad-arch', '25.12.6'), ('empty-arch', '25.12.6'),
+            ('missing-release-file', '25.12.6'), ('no-release', '25.12.6'),
             ('release-unavailable', '25.12.6'),
             ('versionless-release', '25.12.6'), ('new-revision', '25.12.6'),
             ('legacy-tag', '25.12.6'), ('invalid-metadata', '25.12.6'),
-            ('x86', '25.12.6'),
+            ('x86', '25.12.6'), ('arm64-generic', '25.12.6'), ('arm64-a72', '25.12.6'),
             ('download-failed', '25.12.6'), ('bad-signature', '25.12.6'),
             ('install-failed', '25.12.6'),
         ]:
             with self.subTest(scenario=scenario, firmware=version), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
+                architecture = {'x86': 'x86_64', 'arm64-generic': 'aarch64_generic',
+                                'arm64-a72': 'aarch64_cortex-a72', 'bad-arch': '../bad',
+                                'empty-arch': ''}.get(scenario, 'aarch64_cortex-a53')
+                if scenario != 'missing-release-file':
+                    (root / 'openwrt_release').write_text(f"DISTRIB_ARCH='{architecture}'\n")
                 binaries = root / 'bin'
                 binaries.mkdir()
                 mock = binaries / 'mock'
@@ -85,6 +91,7 @@ class InstallerCheck(unittest.TestCase):
                     (binaries / name).symlink_to(mock)
                 # Redirect only filesystem locations; execute the real installer logic.
                 source = (ROOT / 'install.sh').read_text().replace(
+                    '/etc/openwrt_release', str(root / 'openwrt_release')).replace(
                     '/etc/apk/keys', str(root / 'keys')).replace(
                     '/etc/init.d/', str(binaries) + '/').replace(
                     '/tmp/firefox-vpn-install.', str(root / 'download.'))
@@ -93,7 +100,7 @@ class InstallerCheck(unittest.TestCase):
                 result = subprocess.run(['sh', str(installer)], capture_output=True, text=True,
                                         env={**os.environ, 'PATH': str(binaries) + ':' + os.environ['PATH'],
                                              'TEST_ROOT': directory, 'SCENARIO': scenario, 'TEST_VERSION': version})
-                success = scenario in ('ok', 'new-revision', 'legacy-tag', 'x86')
+                success = scenario in ('ok', 'new-revision', 'legacy-tag', 'x86', 'arm64-generic', 'arm64-a72')
                 self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
                 commands = [json.loads(line) for line in (root / 'commands.jsonl').read_text().splitlines()]
                 installs = [cmd for cmd in commands if cmd[:2] == ['apk', 'add']]
@@ -106,7 +113,6 @@ class InstallerCheck(unittest.TestCase):
                                      'https://api.github.com/repos/BercX/firefox-vpn-openwrt/releases/latest')
                     package_version = '0.2.0-r42' if scenario == 'new-revision' else '0.1.0-r13' if scenario == 'legacy-tag' else '0.1.0-r1'
                     tag = ('v' if scenario == 'legacy-tag' else '') + package_version
-                    architecture = 'x86_64' if scenario == 'x86' else 'aarch64_cortex-a53'
                     self.assertEqual([url.rsplit('/', 1)[1] for url in urls], [
                         f'firefox-vpn-{package_version}-{architecture}.apk',
                         f'luci-app-firefox-vpn-{package_version}-all.apk',
@@ -121,7 +127,7 @@ class InstallerCheck(unittest.TestCase):
                     self.assertFalse(services)
                 if not success and scenario != 'install-failed':
                     self.assertFalse((root / 'keys').exists())
-                if scenario in ('not-root', 'bad-arch'):
+                if scenario in ('not-root', 'bad-arch', 'empty-arch', 'missing-release-file'):
                     self.assertFalse(any(cmd[0] == 'wget' for cmd in commands))
                 if scenario in ('release-unavailable', 'no-release'):
                     self.assertIn('https://github.com/BercX/firefox-vpn-openwrt/releases', result.stderr)

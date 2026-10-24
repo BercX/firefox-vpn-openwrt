@@ -14,9 +14,10 @@ main() {
         command -v "$command" >/dev/null 2>&1 || fail "Required command not found: $command. Only APK-based OpenWrt is supported."
     done
 
-    ARCH="$(apk --print-arch)"
+    # APK may report only the CPU family, not OpenWrt's package architecture.
+    ARCH="$(. /etc/openwrt_release && printf '%s' "${DISTRIB_ARCH:-}")" || fail "Cannot read /etc/openwrt_release to determine the package architecture."
     case "$ARCH" in
-        ''|*[!a-zA-Z0-9_-]*) fail "Cannot determine a valid APK architecture." ;;
+        ''|*[!a-zA-Z0-9_-]*) fail "Cannot determine a valid OpenWrt package architecture." ;;
     esac
 
     umask 077
