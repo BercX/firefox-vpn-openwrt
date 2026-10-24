@@ -1,0 +1,11 @@
+{
+  "luci-app-firefox-vpn": {
+    "description": "Manage Firefox VPN accounts, proxy and settings",
+    "read": {
+      "ubus": { "luci.firefox-vpn": ["read"], "network.interface.lan": ["status"] }
+    },
+    "write": {
+      "ubus": { "luci.firefox-vpn": ["write"] }
+    }
+  }
+}

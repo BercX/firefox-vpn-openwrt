@@ -1,0 +1,12 @@
+.idea/
+.venv/
+__pycache__/
+.playwright-mcp/
+.build/
+BUILDING.local.md
+/docs/local/
+dist/
+*.ipk
+*.apk
+*.key
+*.pem

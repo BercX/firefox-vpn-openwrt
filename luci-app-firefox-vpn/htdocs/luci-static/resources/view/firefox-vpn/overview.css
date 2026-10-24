@@ -1,0 +1,55 @@
+.ffvpn {
+	width: 100%;
+	max-width: 1200px;
+	min-width: 0;
+	box-sizing: border-box;
+	margin: 0 auto;
+}
+.ffvpn { --ffvpn-success: var(--success-color-low, #16803a); --ffvpn-warning: #916000; }
+[data-darkmode="true"] .ffvpn { --ffvpn-success: var(--success-color-high, #00a66c); --ffvpn-warning: var(--warn-color-high, #efbd0b); }
+.ffvpn .ffvpn-page-header { display: flex; align-items: baseline; justify-content: space-between; gap: 1em; margin-bottom: 1em; }
+.ffvpn .ffvpn-page-header h2 { margin: 0; }
+.ffvpn .ffvpn-version { font-size: .55em; font-weight: normal; color: var(--text-color-medium, #767676); white-space: nowrap; }
+.ffvpn .ffvpn-settings { padding-bottom: 1.5em; }
+.ffvpn .ffvpn-settings .cbi-section { border: 0; box-shadow: none; padding: 0; margin: 0 0 1em; }
+.ffvpn .ffvpn-settings h3 { font-size: 1em; margin: 1em 0 .5em; }
+.ffvpn .ffvpn-country { white-space: nowrap; }
+.ffvpn .ffvpn-flag { font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif; font-variant-emoji: emoji; font-weight: normal; font-style: normal; }
+.ffvpn .ffvpn-panel {
+	min-width: 0;
+	min-height: 0;
+	height: auto;
+	margin: 0 0 .75em;
+	padding: .85em;
+	border: 1px solid var(--border-color, #ddd);
+	border-radius: 6px;
+}
+.ffvpn .ffvpn-panel h3 { margin: 0 0 .65em; padding: 0; }
+.ffvpn [data-tab="overview"] > .cbi-section { border: 0; border-radius: 0; box-shadow: none; padding: 0; margin: 0 0 18px; }
+.ffvpn .ffvpn-status-table th { text-align: left; }
+.ffvpn .ffvpn-status-table td { overflow-wrap: anywhere; }
+.ffvpn .ffvpn-proxy-table input { width: 100%; min-width: 0; box-sizing: border-box; }
+.ffvpn .ffvpn-controls { display: flex; align-items: center; flex-wrap: wrap; gap: .35em; margin-top: .4em; }
+.ffvpn .ffvpn-controls .cbi-button { margin: 0; }
+.ffvpn [data-tab="overview"] .ffvpn-controls { flex-wrap: nowrap; justify-content: flex-end; margin: 0; }
+.ffvpn .cbi-button:disabled { opacity: .45; cursor: not-allowed; }
+.ffvpn .ffvpn-warning { margin: 1em 0 0; }
+.ffvpn .ffvpn-warning p { margin: .5em 0; }
+.ffvpn .ffvpn-note { font-size: .9em; opacity: .8; margin: .4em 0 0; }
+.ffvpn .ffvpn-traffic-summary small { color: inherit; }
+.ffvpn .ffvpn-accounts { overflow-x: auto; }
+.ffvpn [data-tab="logs"] .ffvpn-panel, .ffvpn .ffvpn-logs { border: 0; border-radius: 0; box-shadow: none; }
+.ffvpn .ffvpn-logs {
+	height: max(0px, calc(100vh - var(--ffvpn-logs-space, 16rem)));
+	height: max(0px, calc(100dvh - var(--ffvpn-logs-space, 16rem)));
+	min-height: 0;
+	max-height: none;
+	box-sizing: border-box;
+	margin: 0;
+	overflow: auto;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+	.ffvpn .ffvpn-panel { padding: .75em; }
+}

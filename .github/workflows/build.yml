@@ -1,0 +1,102 @@
+name: Check and build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # One SDK supplies host APK/fakeroot tools, not target Go toolchains.
+  SDK_IMAGE: ghcr.io/openwrt/sdk:aarch64_cortex-a53-25.12.6@sha256:c0a7d32bc417f77bece0b77553b7c17835b7c60e6ffc6dd7fc6b8756d7bffb3f
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: firefox-vpn/src/go.mod
+          cache-dependency-path: firefox-vpn/src/go.sum
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - run: make check test
+      # Ten static Go builds serve all 30 architecture labels; no subarch rebuilds.
+      - name: Build shared Go baselines
+        run: make native-build BUILD_DIR="$RUNNER_TEMP/firefox-vpn-build"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: native-baselines
+          path: ${{ runner.temp }}/firefox-vpn-build/native/*
+          retention-days: 1
+          if-no-files-found: error
+
+  sign:
+    needs: build
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    # Configure environment secrets and allow only master in GitHub settings.
+    environment: signing
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: native-baselines
+          path: ${{ runner.temp }}/native-baselines
+      - name: Package and verify signed APKs
+        env:
+          APK_SIGNING_KEY: ${{ secrets.APK_SIGNING_KEY }}
+          APK_SIGNING_PUBLIC_KEY: ${{ vars.APK_SIGNING_PUBLIC_KEY }}
+        run: |
+          python3 scripts/sign_apks.py \
+            --binaries "$RUNNER_TEMP/native-baselines" \
+            --output "$RUNNER_TEMP/firefox-vpn-output/release" \
+            --sdk-image "$SDK_IMAGE"
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RELEASE_DIR="$RUNNER_TEMP/firefox-vpn-output/release"
+          TAG="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["version"])' "$RELEASE_DIR/build-info.json")"
+          # Reserve a new version at this exact commit; never replace existing tags.
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f "ref=refs/tags/$TAG" -f "sha=$GITHUB_SHA"
+          # Keep incomplete uploads invisible to the installer's latest-release query.
+          gh release create "$TAG" "$RELEASE_DIR"/* --repo "$GITHUB_REPOSITORY" \
+            --verify-tag --target "$GITHUB_SHA" --draft --title "$TAG" \
+            --notes "Signed OpenWrt APKs, installer, public signing key and build metadata."
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+
+  cleanup:
+    needs: [build, sign]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Delete temporary build artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" \
+            --jq '.artifacts[] | select(.name == "native-baselines") | .id' |
+          while IFS= read -r artifact; do
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact"
+          done

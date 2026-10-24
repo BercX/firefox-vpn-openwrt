@@ -1,0 +1,8 @@
+{
+  "admin/services/firefox-vpn": {
+    "title": "Firefox VPN",
+    "order": 60,
+    "action": { "type": "view", "path": "firefox-vpn/overview" },
+    "depends": { "acl": ["luci-app-firefox-vpn"] }
+  }
+}
