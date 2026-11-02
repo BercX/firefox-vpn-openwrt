@@ -20,6 +20,7 @@ import (
 
 const (
 	fxaAuthServer   = "https://api.accounts.firefox.com/v1"
+	fxaOAuthServer  = "https://oauth.accounts.firefox.com/v1"
 	firefoxClientID = "5882386c6d801776"
 	oauthScope      = "profile https://identity.mozilla.com/apps/vpn"
 
@@ -118,6 +119,9 @@ func fxaDo(ctx context.Context, newRequest func() (*http.Request, error)) (*http
 		if err != nil {
 			return nil, err
 		}
+		// Match the challenge solver's browser identity.
+		req.Header.Set("User-Agent", fastlySolverUserAgent)
+		req.Header.Set("Accept", "*/*")
 		resp, err := controlplane.Do(req)
 		if err != nil {
 			return nil, err
@@ -127,6 +131,9 @@ func fxaDo(ctx context.Context, newRequest func() (*http.Request, error)) (*http
 		}
 		io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
 		resp.Body.Close()
+		if attempt == maxChallengeAttempts {
+			break
+		}
 
 		if err := solveFastlyChallenge(ctx); err != nil {
 			return nil, fmt.Errorf("Fastly anti-bot challenge: %w", err)
@@ -173,7 +180,6 @@ func fxaLoginAttempt(ctx context.Context, email, password, verificationMethod, u
 			return nil, fmt.Errorf("creating login request: %w", err)
 		}
 		req.Header.Set("Content-Type", "application/json")
-		controlplane.ApplyMozillaVPNHeaders(req)
 		return req, nil
 	})
 	if err != nil {
@@ -217,7 +223,6 @@ func VerifySession(ctx context.Context, sessionToken, code string) error {
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", authHeader)
-		controlplane.ApplyMozillaVPNHeaders(req)
 		return req, nil
 	})
 	if err != nil {
@@ -255,7 +260,6 @@ func DestroySession(ctx context.Context, sessionToken string) error {
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", authHeader)
-		controlplane.ApplyMozillaVPNHeaders(req)
 		return req, nil
 	})
 	if err != nil {
@@ -296,7 +300,6 @@ func OAuthToken(ctx context.Context, sessionToken string) (*TokenResponse, error
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", authHeader)
-		controlplane.ApplyMozillaVPNHeaders(req)
 		return req, nil
 	})
 	if err != nil {
@@ -328,7 +331,8 @@ func RefreshToken(ctx context.Context, refreshToken string) (*TokenResponse, err
 	}
 	bodyJSON, _ := json.Marshal(body)
 
-	tokenURL := fxaAuthServer + "/oauth/token"
+	// Refresh grants use the OAuth host; Hawk session grants use the auth host.
+	tokenURL := fxaOAuthServer + "/oauth/token"
 
 	resp, err := fxaDo(ctx, func() (*http.Request, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(string(bodyJSON)))
@@ -336,7 +340,6 @@ func RefreshToken(ctx context.Context, refreshToken string) (*TokenResponse, err
 			return nil, fmt.Errorf("creating refresh request: %w", err)
 		}
 		req.Header.Set("Content-Type", "application/json")
-		controlplane.ApplyMozillaVPNHeaders(req)
 		return req, nil
 	})
 	if err != nil {

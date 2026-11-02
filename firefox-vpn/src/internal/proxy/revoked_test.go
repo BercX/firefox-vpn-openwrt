@@ -27,7 +27,7 @@ func revokedFixture(t *testing.T, verified bool, acceptOld bool) (logins, device
 	logins, devices = new(atomic.Int32), new(atomic.Int32)
 	setCoreControlPlane(t, func(r *http.Request) (*http.Response, error) {
 		bearer := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if r.URL.Host == "api.accounts.firefox.com" {
+		if r.URL.Host == "api.accounts.firefox.com" || r.URL.Host == "oauth.accounts.firefox.com" {
 			var body map[string]any
 			if r.Body != nil {
 				_ = json.NewDecoder(r.Body).Decode(&body)

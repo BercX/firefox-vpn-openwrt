@@ -35,7 +35,7 @@ const (
 	// a wrong CAPTCHA answer, so rounds also bound CAPTCHA retries.
 	maxPostBackRounds = 8
 
-	fastlySolverUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+	fastlySolverUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) Gecko/20100101 Firefox/135.0"
 )
 
 var (
@@ -402,7 +402,7 @@ func clientMetricsAnswer() map[string]interface{} {
 // installChallengeCookies copies the cookies earned by the solver into the
 // control plane client's jar so subsequent FxA API calls carry them. The
 // cookie is issued with Domain=firefox.com, which covers
-// api.accounts.firefox.com.
+// both the auth and OAuth hosts.
 func installChallengeCookies(solverJar http.CookieJar, pageURL string) error {
 	parsed, err := url.Parse(pageURL)
 	if err != nil {
@@ -413,13 +413,13 @@ func installChallengeCookies(solverJar http.CookieJar, pageURL string) error {
 		return fmt.Errorf("challenge completed but no cookies were issued")
 	}
 
-	apiURL, err := url.Parse(fxaAuthServer + "/")
-	if err != nil {
-		return err
+	for _, target := range []string{fxaAuthServer + "/", fxaOAuthServer + "/", fxaSiteURL} {
+		u, err := url.Parse(target)
+		if err != nil {
+			return err
+		}
+		controlplane.SetCookies(u, cookies)
 	}
-	controlplane.SetCookies(apiURL, cookies)
-	parsed2, _ := url.Parse(fxaSiteURL)
-	controlplane.SetCookies(parsed2, cookies)
 	return nil
 }
 

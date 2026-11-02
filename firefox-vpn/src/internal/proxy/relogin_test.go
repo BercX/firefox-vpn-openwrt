@@ -23,7 +23,7 @@ import (
 func reloginFixture(t *testing.T, logins *atomic.Int32, loginErr func(*http.Request) (*http.Response, error)) {
 	t.Helper()
 	setCoreControlPlane(t, func(r *http.Request) (*http.Response, error) {
-		if r.URL.Host == "api.accounts.firefox.com" {
+		if r.URL.Host == "api.accounts.firefox.com" || r.URL.Host == "oauth.accounts.firefox.com" {
 			var body map[string]any
 			if r.Body != nil {
 				_ = json.NewDecoder(r.Body).Decode(&body)

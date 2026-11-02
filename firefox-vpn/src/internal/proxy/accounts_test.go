@@ -116,7 +116,7 @@ func TestAccountPoolSkipsExhaustedAndSignedOutAccounts(t *testing.T) {
 		t.Fatal(err)
 	}
 	setCoreControlPlane(t, func(r *http.Request) (*http.Response, error) {
-		if r.URL.Host == "api.accounts.firefox.com" {
+		if r.URL.Host == "oauth.accounts.firefox.com" {
 			return coreResponse(r, http.StatusBadRequest, `{"code":400,"errno":110,"message":"Invalid token"}`, nil), nil
 		}
 		switch accountFromBearer(r) {
